@@ -13,3 +13,6 @@ export const updateUserStatus = (id, isActive) =>
 
 export const updateUserRole = (id, role) =>
   api.patch(`/users/${id}/role`, { role });
+
+export const transferAdminRole = (targetEmail, newRoleForCurrentAdmin = 'production_manager') =>
+  api.post('/users/transfer-admin', { targetEmail, newRoleForCurrentAdmin });

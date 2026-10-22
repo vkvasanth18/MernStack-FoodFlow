@@ -72,7 +72,7 @@ const getAdminStats = async () => {
     lowStockCount,
     nearExpiryCount,
   ] = await Promise.all([
-    Product.countDocuments({ isActive: true }),
+    Product.countDocuments({ status: { $ne: 'Discontinued' } }),
     RawMaterial.countDocuments(),
     Alert.countDocuments({ isRead: false }),
     Alert.countDocuments({ isRead: false, severity: 'critical' }),
@@ -109,7 +109,7 @@ const getAdminStats = async () => {
       .limit(5)
       .populate('itemId', 'name code')
       .select('type quantity itemType reason createdAt'),
-    Product.find({ isActive: true })
+    Product.find({ status: { $ne: 'Discontinued' } })
       .sort({ currentStock: -1 })
       .limit(5)
       .select('name code currentStock minStock unit stockStatus'),

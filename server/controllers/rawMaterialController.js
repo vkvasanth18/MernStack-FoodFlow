@@ -1,5 +1,8 @@
 import RawMaterial from '../models/RawMaterial.js';
 import Alert from '../models/Alert.js';
+import Product from '../models/Product.js';
+import Production from '../models/Production.js';
+import Waste from '../models/Waste.js';
 
 /**
  * Helper to generate system alerts for low stock and near expiry
@@ -291,6 +294,20 @@ export const deleteRawMaterial = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Raw material not found.',
+      });
+    }
+
+    // Referential integrity checks
+    const [recipeCount, productionCount, wasteCount] = await Promise.all([
+      Product.countDocuments({ 'recipe.material': req.params.id }),
+      Production.countDocuments({ 'materialsUsed.material': req.params.id }),
+      Waste.countDocuments({ itemType: 'RawMaterial', itemId: req.params.id }),
+    ]);
+
+    if (recipeCount > 0 || productionCount > 0 || wasteCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete ingredient '${material.name}' because it is linked to ${recipeCount} product recipe(s), ${productionCount} production batch(es), and ${wasteCount} waste record(s).`,
       });
     }
 

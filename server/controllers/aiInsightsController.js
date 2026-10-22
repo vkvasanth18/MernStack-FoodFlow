@@ -68,7 +68,7 @@ export const getAIInsights = async (req, res, next) => {
     const [rawMaterials, products, plannedBatches, recentWastes, suppliers] =
       await Promise.all([
         RawMaterial.find().populate('supplier'),
-        Product.find({ isActive: true }),
+        Product.find({ status: { $ne: 'Discontinued' } }),
         Production.find({ status: { $in: ['Planned', 'In Progress'] } }).populate('product'),
         Waste.find().sort({ createdAt: -1 }).limit(50),
         Supplier.find(),
@@ -537,7 +537,7 @@ export const simulateScenario = async (req, res, next) => {
 
     const [rawMaterials, products] = await Promise.all([
       RawMaterial.find().populate('supplier'),
-      Product.find({ isActive: true }),
+      Product.find({ status: { $ne: 'Discontinued' } }),
     ]);
 
     const surgeMultiplier = 1 + Number(demandSurgePercent) / 100;

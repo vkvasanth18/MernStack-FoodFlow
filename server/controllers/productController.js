@@ -1,4 +1,7 @@
 import Product from '../models/Product.js';
+import Production from '../models/Production.js';
+import Waste from '../models/Waste.js';
+import RawMaterial from '../models/RawMaterial.js';
 
 /**
  * @desc    Get all products with filtering, search, sorting & pagination
@@ -260,11 +263,131 @@ export const deleteProduct = async (req, res, next) => {
       });
     }
 
+    // Referential integrity check
+    const [productionCount, wasteCount] = await Promise.all([
+      Production.countDocuments({ product: req.params.id }),
+      Waste.countDocuments({ itemType: 'Product', itemId: req.params.id }),
+    ]);
+
+    if (productionCount > 0 || wasteCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete '${product.name}' because it has ${productionCount} production batch(es) and ${wasteCount} waste record(s). Change status to 'Discontinued' instead.`,
+      });
+    }
+
     await product.deleteOne();
 
     res.status(200).json({
       success: true,
       message: `Product '${product.name}' deleted successfully.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get recipe (BOM) for product with ingredient availability and cost estimation
+ * @route   GET /api/products/:id/recipe
+ * @access  Private
+ */
+export const getProductRecipe = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id).populate(
+      'recipe.material',
+      'name code unit costPerUnit currentStock minStock'
+    );
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found.' });
+    }
+
+    let calculatedCost = 0;
+    const ingredients = (product.recipe || []).map((item) => {
+      const unitCost = item.material?.costPerUnit || 0;
+      const subtotal = parseFloat((unitCost * item.quantity).toFixed(2));
+      calculatedCost += subtotal;
+      return {
+        material: item.material,
+        quantity: item.quantity,
+        subtotal,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      productId: product._id,
+      productName: product.name,
+      productCode: product.code,
+      unit: product.unit,
+      productionCost: product.productionCost,
+      calculatedCost: parseFloat(calculatedCost.toFixed(2)),
+      ingredients,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update recipe (BOM) ingredients for a product
+ * @route   PUT /api/products/:id/recipe
+ * @access  Private/Admin/ProductionManager
+ */
+export const updateProductRecipe = async (req, res, next) => {
+  try {
+    const { recipe, updateProductionCost } = req.body;
+
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found.' });
+    }
+
+    if (!Array.isArray(recipe)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Recipe must be an array of ingredient items.',
+      });
+    }
+
+    const formattedRecipe = [];
+    let calculatedCost = 0;
+
+    for (const item of recipe) {
+      if (!item.material || Number(item.quantity) <= 0) {
+        continue;
+      }
+      const rawMat = await RawMaterial.findById(item.material);
+      if (!rawMat) {
+        return res.status(400).json({
+          success: false,
+          message: `Raw material ${item.material} not found.`,
+        });
+      }
+      formattedRecipe.push({
+        material: rawMat._id,
+        quantity: Number(item.quantity),
+      });
+      calculatedCost += Number(rawMat.costPerUnit || 0) * Number(item.quantity);
+    }
+
+    product.recipe = formattedRecipe;
+    if (updateProductionCost && calculatedCost > 0) {
+      product.productionCost = parseFloat(calculatedCost.toFixed(2));
+    }
+    await product.save();
+
+    const populated = await Product.findById(product._id).populate(
+      'recipe.material',
+      'name code unit costPerUnit currentStock'
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Recipe updated successfully.',
+      product: populated,
+      calculatedCost: parseFloat(calculatedCost.toFixed(2)),
     });
   } catch (error) {
     next(error);

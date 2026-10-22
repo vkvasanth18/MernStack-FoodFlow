@@ -10,6 +10,7 @@ import {
   getUsers,
   updateUserStatus,
   updateUserRole,
+  transferAdminRole,
 } from '../controllers/userController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
@@ -22,5 +23,6 @@ router.use(authorize('admin'));
 router.get('/', getUsers);
 router.patch('/:id/status', updateUserStatus);
 router.patch('/:id/role', updateUserRole);
+router.post('/transfer-admin', transferAdminRole);
 
 export default router;
