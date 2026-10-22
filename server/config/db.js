@@ -2,37 +2,52 @@ import mongoose from 'mongoose';
 
 let isConnected = false;
 
+// Attach connection lifecycle event listeners
+mongoose.connection.on('connected', () => {
+  isConnected = true;
+});
+
+mongoose.connection.on('disconnected', () => {
+  isConnected = false;
+  console.warn('⚠️  MongoDB connection disconnected.');
+});
+
+mongoose.connection.on('error', (err) => {
+  isConnected = false;
+  console.error(`❌ MongoDB connection error: ${err.message}`);
+});
+
 /**
- * Connect to MongoDB database
- * Uses MONGO_URI from .env environment variables
+ * Connect to MongoDB Atlas database
+ * Reads connection string securely from process.env.MONGO_URI
  */
 const connectDB = async () => {
-  if (isConnected) {
-    return;
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return mongoose.connection;
   }
 
-  const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/food_production_platform';
+  const uri = process.env.MONGO_URI;
+
+  if (!uri) {
+    throw new Error('MONGO_URI is missing. Please define MONGO_URI in server/.env with your MongoDB Atlas connection string.');
+  }
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of hanging
+      serverSelectionTimeoutMS: 8000, // Timeout after 8s if network/IP access is blocked
     });
 
     isConnected = true;
-    console.log(`✅ MongoDB Connected: ${conn.connection.host} (DB: ${conn.connection.name})`);
+    console.log(`✅ MongoDB Connected: ${conn.connection.host} (Database: ${conn.connection.name})`);
+    return conn;
   } catch (error) {
     isConnected = false;
-    console.warn(`⚠️  MongoDB Connection Warning: ${error.message}`);
-    console.warn(`----------------------------------------------------------------------`);
-    console.warn(`👉 To connect your database:`);
-    console.warn(`   1. Open: server/.env`);
-    console.warn(`   2. Set MONGO_URI to your free MongoDB Atlas cluster URI`);
-    console.warn(`      OR start your local MongoDB service.`);
-    console.warn(`   The Express API is running, but database operations will pause until connected.`);
-    console.warn(`----------------------------------------------------------------------`);
+    // Log user-friendly message without exposing database credentials
+    console.error(`❌ MongoDB Connection Failed: ${error.message}`);
+    throw error;
   }
 };
 
-export const checkDBStatus = () => isConnected;
+export const checkDBStatus = () => isConnected && mongoose.connection.readyState === 1;
 
 export default connectDB;

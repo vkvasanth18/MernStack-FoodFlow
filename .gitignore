@@ -10,8 +10,10 @@ server/node_modules/
 !.env.example
 server/.env
 server/.env.*
+!server/.env.example
 client/.env
 client/.env.*
+!client/.env.example
 
 # Build outputs
 dist/

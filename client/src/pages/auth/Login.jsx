@@ -31,7 +31,7 @@ const Login = () => {
       const errorMsg =
         error.response?.data?.message ||
         (error.message === 'Network Error'
-          ? 'Network Error: Cannot connect to server at http://localhost:5000'
+          ? 'Network Error: Unable to reach the API server. Please check your connection or backend status.'
           : 'Login failed. Please check credentials.');
       toast.error(errorMsg);
     } finally {

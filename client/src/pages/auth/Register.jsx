@@ -163,7 +163,6 @@ const Register = () => {
               >
                 <option value="production_manager">Production Manager</option>
                 <option value="inventory_manager">Inventory Manager</option>
-                <option value="admin">System Administrator</option>
               </select>
             </div>
 

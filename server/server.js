@@ -21,32 +21,52 @@ import aiInsightsRoutes from './routes/aiInsightsRoutes.js';
 // Load environment variables from .env file
 dotenv.config();
 
-// Initialize MongoDB connection
-connectDB();
-
 const app = express();
 
 // Enable Cross-Origin Resource Sharing (CORS)
-const allowedOrigins = [
+const defaultAllowedOrigins = [
+  'https://mern-stack-food-flow.vercel.app',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
   'http://127.0.0.1:5175',
-  process.env.CLIENT_URL,
-].filter(Boolean);
+];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
+const envOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...envOrigins])];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/$/, '');
+
+      // Check against explicit list, local ports regex, or Vercel preview domains
+      const isAllowed =
+        allowedOrigins.includes(normalizedOrigin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin) ||
+        /^https:\/\/mern-stack-food-flow.*\.vercel\.app$/.test(normalizedOrigin);
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS Blocked] Origin not allowed: ${origin}`);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  })
+);
 
 // Body parser middlewares for parsing JSON and URL-encoded bodies
 app.use(express.json());
@@ -103,7 +123,30 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on http://localhost:${PORT}`);
-  console.log(`📡 Health Check URL: http://localhost:${PORT}/api/health`);
-});
+// Connect to MongoDB Atlas before starting the Express server
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on http://localhost:${PORT}`);
+      console.log(`📡 Health Check URL: http://localhost:${PORT}/api/health`);
+    });
+  } catch (error) {
+    console.error('\n=============================================================');
+    console.error('🛑 SERVER STARTUP ABORTED: Failed to connect to MongoDB Atlas');
+    console.error('=============================================================');
+    console.error('Action required in MongoDB Atlas:');
+    console.error(' 1. Network Access (IP Whitelist):');
+    console.error('    • Go to MongoDB Atlas -> Network Access -> Add IP Address');
+    console.error('    • Add your current IP address (or 0.0.0.0/0 to allow all)');
+    console.error(' 2. Database User Credentials:');
+    console.error('    • Go to MongoDB Atlas -> Database Access');
+    console.error('    • Ensure user exists and password is correct in server/.env');
+    console.error(' 3. Connection String:');
+    console.error('    • Check MONGO_URI in server/.env is uncommented and accurate.');
+    console.error('=============================================================\n');
+    process.exit(1);
+  }
+};
+
+startServer();

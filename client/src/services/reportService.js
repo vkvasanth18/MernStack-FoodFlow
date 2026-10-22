@@ -6,7 +6,7 @@
  * For CSV exports, we trigger a browser file download
  * by creating a hidden <a> link — no special library needed.
  */
-import api from './api';
+import api, { getBaseURL } from './api';
 
 const BASE = '/reports';
 
@@ -31,7 +31,7 @@ export const downloadCSV = async (type, params = {}) => {
     Object.fromEntries(Object.entries(params).filter(([, v]) => v))
   ).toString();
 
-  const url = `http://localhost:5000/api/reports/export/${type}${query ? '?' + query : ''}`;
+  const url = `${getBaseURL()}/reports/export/${type}${query ? '?' + query : ''}`;
 
   // Fetch the CSV with auth header
   const response = await fetch(url, {

@@ -34,9 +34,16 @@ export const registerUser = async (req, res, next) => {
       });
     }
 
-    // Default to first user as admin if no users exist yet
+    // First user created in the system gets 'admin' role automatically
     const count = await User.countDocuments({});
-    const assignedRole = count === 0 ? 'admin' : (role || 'production_manager');
+    let assignedRole;
+    if (count === 0) {
+      assignedRole = 'admin';
+    } else {
+      // Disallow self-registering as admin for subsequent users
+      const allowedRegistrationRoles = ['production_manager', 'inventory_manager'];
+      assignedRole = allowedRegistrationRoles.includes(role) ? role : 'production_manager';
+    }
 
     // Create new user (pre-save hook in User model hashes password)
     const user = await User.create({

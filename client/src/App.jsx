@@ -84,15 +84,8 @@ function App() {
             {/* Default redirect — goes to dashboard (role-aware content handled there) */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-            {/* ── Dashboard: accessible to all roles ── */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={ALL_ROLES} redirectOnFail="/dashboard">
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
+            {/* ── Dashboard: accessible to all authenticated roles ── */}
+            <Route path="/dashboard" element={<Dashboard />} />
 
             {/* ── Profile: all roles ── */}
             <Route path="/profile" element={<Profile />} />
