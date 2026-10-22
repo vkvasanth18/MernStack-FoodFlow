@@ -63,7 +63,7 @@ export const getProductionReport = async (req, res, next) => {
     const skip  = (page - 1) * limit;
 
     const filter = {
-      ...buildDateFilter('startDate', from, to),
+      ...buildDateFilter('productionDate', from, to),
     };
     if (status)    filter.status  = status;
     if (productId) filter.product = productId;
@@ -71,8 +71,8 @@ export const getProductionReport = async (req, res, next) => {
     const [batches, total] = await Promise.all([
       Production.find(filter)
         .populate('product',    'name code unit')
-        .populate('createdBy',  'name')
-        .sort({ startDate: -1 })
+        .populate('manager',    'name email')
+        .sort({ productionDate: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Production.countDocuments(filter),
@@ -211,34 +211,34 @@ export const getInventoryReport = async (req, res, next) => {
 export const exportProductionCSV = async (req, res, next) => {
   try {
     const { from, to, status, productId } = req.query;
-    const filter = { ...buildDateFilter('startDate', from, to) };
+    const filter = { ...buildDateFilter('productionDate', from, to) };
     if (status)    filter.status  = status;
     if (productId) filter.product = productId;
 
     const batches = await Production.find(filter)
       .populate('product',   'name code unit')
-      .populate('createdBy', 'name')
-      .sort({ startDate: -1 })
+      .populate('manager',   'name')
+      .sort({ productionDate: -1, createdAt: -1 })
       .limit(500); // cap at 500 rows for safety
 
     const headers = [
-      'Batch Code', 'Product Name', 'Product Code', 'Unit',
+      'Batch Number', 'Product Name', 'Product Code', 'Unit',
       'Status', 'Planned Qty', 'Actual Qty', 'Efficiency (%)',
-      'Start Date', 'End Date', 'Created By', 'Notes',
+      'Production Date', 'Completion Date', 'Manager', 'Notes',
     ];
 
     const rows = batches.map(b => [
-      b.batchCode,
+      b.batchNumber || b.batchCode || '',
       b.product?.name   || '',
       b.product?.code   || '',
       b.product?.unit   || '',
       b.status,
       b.plannedQuantity,
-      b.actualQuantity  || '',
+      b.actualQuantity  != null ? b.actualQuantity : '',
       b.efficiency      ? b.efficiency.toFixed(1) : '',
-      b.startDate       ? new Date(b.startDate).toLocaleDateString() : '',
-      b.endDate         ? new Date(b.endDate).toLocaleDateString()   : '',
-      b.createdBy?.name || '',
+      b.productionDate  ? new Date(b.productionDate).toLocaleDateString() : (b.startDate ? new Date(b.startDate).toLocaleDateString() : ''),
+      b.completionDate  ? new Date(b.completionDate).toLocaleDateString() : (b.endDate ? new Date(b.endDate).toLocaleDateString() : ''),
+      b.manager?.name   || b.createdBy?.name || '',
       b.notes           || '',
     ]);
 
@@ -272,20 +272,19 @@ export const exportWasteCSV = async (req, res, next) => {
     const headers = [
       'Date', 'Item Name', 'Item Code', 'Item Type',
       'Waste Type', 'Quantity', 'Unit', 'Cost (₹)',
-      'Root Cause', 'Preventable', 'Recorded By',
+      'Reason / Root Cause', 'Recorded By',
     ];
 
     const rows = records.map(w => [
       w.date         ? new Date(w.date).toLocaleDateString() : '',
-      w.itemId?.name || '',
+      w.itemName     || w.itemId?.name || '',
       w.itemId?.code || '',
       w.itemType,
       w.wasteType,
       w.quantity,
       w.unit         || w.itemId?.unit || '',
       w.cost?.toFixed(2) || '',
-      w.rootCause    || '',
-      w.preventable  ? 'Yes' : 'No',
+      w.reason       || w.rootCause    || '',
       w.recordedBy?.name || '',
     ]);
 
